@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connect WhatsApp — BotFlow</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0f0a;
+    --bg2: #0f1a0f;
+    --green: #22c55e;
+    --green2: #16a34a;
+    --green-glow: rgba(34,197,94,0.15);
+    --green-dim: rgba(34,197,94,0.06);
+    --text: #f0faf0;
+    --muted: #6b8f6b;
+    --border: rgba(34,197,94,0.12);
+    --card: rgba(15,26,15,0.9);
+    --wa: #25d366;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(34,197,94,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(34,197,94,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 520px;
+    text-align: center;
+  }
+
+  /* Logo */
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.4rem;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    margin-bottom: 40px;
+    display: block;
+  }
+  .logo span { color: var(--green); }
+
+  /* Main card */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 48px 40px;
+    backdrop-filter: blur(20px);
+    box-shadow: 0 40px 80px rgba(0,0,0,0.5), 0 0 60px var(--green-glow);
+    animation: fadeUp 0.6s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Steps indicator */
+  .steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 36px;
+  }
+
+  .step-dot {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .step-dot.done {
+    background: var(--green);
+    color: #000;
+  }
+
+  .step-dot.active {
+    background: var(--green-dim);
+    border: 2px solid var(--green);
+    color: var(--green);
+  }
+
+  .step-dot.pending {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  .step-line {
+    width: 40px; height: 1px;
+    background: var(--border);
+  }
+  .step-line.done { background: var(--green); opacity: 0.4; }
+
+  /* Status states */
+  #loadingState, #qrState, #connectedState, #errorState { display: none; }
+  #loadingState { display: block; }
+
+  /* Loading */
+  .loading-spinner {
+    width: 56px; height: 56px;
+    border: 3px solid var(--border);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 24px;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .loading-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 8px;
+  }
+
+  .loading-sub {
+    font-size: 0.9rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .loading-steps {
+    margin-top: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    text-align: left;
+  }
+
+  .loading-step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid transparent;
+    transition: all 0.3s;
+  }
+
+  .loading-step.active {
+    color: var(--text);
+    border-color: var(--border);
+    background: var(--green-dim);
+  }
+
+  .loading-step.done {
+    color: var(--green);
+  }
+
+  .step-icon {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+  }
+
+  .step-icon.spinning {
+    border: 2px solid var(--green);
+    border-top-color: transparent;
+    animation: spin 0.6s linear infinite;
+  }
+
+  .step-icon.done-icon {
+    background: var(--green);
+    color: #000;
+    font-weight: 700;
+  }
+
+  .step-icon.pending-icon {
+    border: 1px solid var(--border);
+  }
+
+  /* QR State */
+  .qr-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 6px;
+  }
+
+  .qr-sub {
+    font-size: 0.88rem;
+    color: var(--muted);
+    margin-bottom: 28px;
+    line-height: 1.6;
+  }
+
+  .qr-wrapper {
+    position: relative;
+    display: inline-block;
+    margin: 0 auto 28px;
+  }
+
+  .qr-frame {
+    width: 220px; height: 220px;
+    background: #fff;
+    border-radius: 16px;
+    padding: 12px;
+    box-shadow: 0 0 40px var(--green-glow), 0 0 0 1px var(--border);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .qr-frame img {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    border-radius: 4px;
+  }
+
+  /* Corner accents */
+  .qr-corner {
+    position: absolute;
+    width: 20px; height: 20px;
+    border-color: var(--green);
+    border-style: solid;
+  }
+  .qr-corner.tl { top: -1px; left: -1px; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+  .qr-corner.tr { top: -1px; right: -1px; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+  .qr-corner.bl { bottom: -1px; left: -1px; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+  .qr-corner.br { bottom: -1px; right: -1px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+
+  /* Scan animation */
+  .scan-line {
+    position: absolute;
+    left: 12px; right: 12px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--green), transparent);
+    top: 12px;
+    animation: scanLine 2s ease-in-out infinite;
+    border-radius: 2px;
+  }
+
+  @keyframes scanLine {
+    0% { top: 12px; opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { top: calc(100% - 14px); opacity: 0; }
+  }
+
+  .qr-timer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 24px;
+  }
+
+  .qr-timer span { color: var(--green); font-weight: 600; }
+
+  /* Steps list */
+  .scan-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: left;
+    margin-bottom: 24px;
+  }
+
+  .scan-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.82rem;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
+  .scan-step-num {
+    width: 22px; height: 22px;
+    background: var(--green-dim);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--green);
+    flex-shrink: 0;
+  }
+
+  .refresh-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .refresh-btn:hover { border-color: var(--green); color: var(--green); }
+
+  /* Connected state */
+  .connected-icon {
+    width: 72px; height: 72px;
+    background: var(--green-dim);
+    border: 2px solid var(--green);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2rem;
+    margin: 0 auto 20px;
+    animation: pop 0.4s ease both;
+  }
+
+  @keyframes pop {
+    0% { transform: scale(0.5); opacity: 0; }
+    70% { transform: scale(1.1); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .connected-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 8px;
+    color: var(--green);
+  }
+
+  .connected-sub {
+    font-size: 0.9rem;
+    color: var(--muted);
+    line-height: 1.7;
+    margin-bottom: 28px;
+  }
+
+  .info-box {
+    background: var(--green-dim);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: left;
+    margin-bottom: 20px;
+  }
+
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.82rem;
+    padding: 4px 0;
+  }
+
+  .info-label { color: var(--muted); }
+  .info-value { color: var(--text); font-weight: 500; }
+  .info-value.green { color: var(--green); }
+
+  /* Error state */
+  .error-icon {
+    width: 64px; height: 64px;
+    background: rgba(239,68,68,0.1);
+    border: 2px solid rgba(239,68,68,0.3);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.6rem;
+    margin: 0 auto 20px;
+  }
+
+  .error-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 800;
+    margin-bottom: 8px;
+    color: #f87171;
+  }
+
+  .error-sub {
+    font-size: 0.88rem;
+    color: var(--muted);
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+
+  .btn-primary {
+    background: var(--green);
+    color: #000;
+    border: none;
+    padding: 12px 28px;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(34,197,94,0.3);
+  }
+
+  /* Orbs */
+  .orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(80px);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .orb-1 { width: 300px; height: 300px; background: rgba(34,197,94,0.07); top: 10%; left: -80px; }
+  .orb-2 { width: 250px; height: 250px; background: rgba(34,197,94,0.05); bottom: 10%; right: -60px; }
+
+  /* Countdown ring */
+  .countdown-ring {
+    position: relative;
+    width: 48px; height: 48px;
+    margin: 0 auto 16px;
+  }
+  .countdown-ring svg { transform: rotate(-90deg); }
+  .countdown-ring circle {
+    fill: none;
+    stroke-width: 3;
+  }
+  .countdown-ring .track { stroke: var(--border); }
+  .countdown-ring .progress { stroke: var(--green); stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
+  .countdown-text {
+    position: absolute;
+    inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--green);
+  }
+
+  @media (max-width: 480px) {
+    .card { padding: 32px 24px; }
+    .qr-frame { width: 190px; height: 190px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+
+<div class="container">
+  <a href="#" class="logo">Bot<span>Flow</span></a>
+
+  <!-- Steps indicator -->
+  <div class="steps">
+    <div class="step-dot done">✓</div>
+    <div class="step-line done"></div>
+    <div class="step-dot done">✓</div>
+    <div class="step-line done"></div>
+    <div class="step-dot active">3</div>
+    <div class="step-line"></div>
+    <div class="step-dot pending">4</div>
+  </div>
+
+  <div class="card">
+
+    <!-- LOADING STATE -->
+    <div id="loadingState">
+      <div class="loading-spinner"></div>
+      <div class="loading-title">Setting up your bot...</div>
+      <div class="loading-sub">We're creating your WhatsApp AI instance. This takes about 10 seconds.</div>
+
+      <div class="loading-steps">
+        <div class="loading-step done" id="ls1">
+          <div class="step-icon done-icon">✓</div>
+          Account created
+        </div>
+        <div class="loading-step done" id="ls2">
+          <div class="step-icon done-icon">✓</div>
+          Data saved
+        </div>
+        <div class="loading-step active" id="ls3">
+          <div class="step-icon spinning"></div>
+          Creating WhatsApp instance...
+        </div>
+        <div class="loading-step" id="ls4">
+          <div class="step-icon pending-icon"></div>
+          Generating QR code
+        </div>
+      </div>
+    </div>
+
+    <!-- QR STATE -->
+    <div id="qrState">
+      <div class="qr-title">Scan to connect</div>
+      <div class="qr-sub">Scan this QR code with WhatsApp to connect your business number</div>
+
+      <div class="qr-wrapper">
+        <div class="qr-frame">
+          <img id="qrImage" src="" alt="QR Code" />
+          <div class="scan-line"></div>
+        </div>
+        <div class="qr-corner tl"></div>
+        <div class="qr-corner tr"></div>
+        <div class="qr-corner bl"></div>
+        <div class="qr-corner br"></div>
+      </div>
+
+      <div class="qr-timer">
+        QR expires in <span id="timerDisplay">60</span>s &nbsp;·&nbsp; <button class="refresh-btn" onclick="refreshQR()">↻ Refresh</button>
+      </div>
+
+      <div class="scan-steps">
+        <div class="scan-step">
+          <div class="scan-step-num">1</div>
+          Open <strong style="color:var(--text);margin:0 4px">WhatsApp</strong> on your phone
+        </div>
+        <div class="scan-step">
+          <div class="scan-step-num">2</div>
+          Tap <strong style="color:var(--text);margin:0 4px">⋮ Menu → Linked Devices</strong>
+        </div>
+        <div class="scan-step">
+          <div class="scan-step-num">3</div>
+          Tap <strong style="color:var(--text);margin:0 4px">Link a Device</strong> and scan
+        </div>
+        <div class="scan-step">
+          <div class="scan-step-num">4</div>
+          Your AI bot activates <strong style="color:var(--green);margin:0 4px">instantly</strong> ✓
+        </div>
+      </div>
+    </div>
+
+    <!-- CONNECTED STATE -->
+    <div id="connectedState">
+      <div class="connected-icon">✓</div>
+      <div class="connected-title">Bot is Live! 🎉</div>
+      <div class="connected-sub">
+        Your WhatsApp AI assistant is now active and replying to customers 24/7.
+      </div>
+
+      <div class="info-box">
+        <div class="info-row">
+          <span class="info-label">Status</span>
+          <span class="info-value green">● Active</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Business</span>
+          <span class="info-value" id="connBusinessName">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Industry</span>
+          <span class="info-value" id="connOccupation">—</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Trial ends</span>
+          <span class="info-value" id="connTrialEnd">—</span>
+        </div>
+      </div>
+
+      <p style="font-size:0.8rem;color:var(--muted);margin-bottom:20px;line-height:1.6">
+        Send a test message to your connected WhatsApp number to see your AI reply instantly!
+      </p>
+
+      <button class="btn-primary" onclick="window.location.href='botflow-saas-landing.html'">
+        Back to Home
+      </button>
+    </div>
+
+    <!-- ERROR STATE -->
+    <div id="errorState">
+      <div class="error-icon">⚠</div>
+      <div class="error-title">Something went wrong</div>
+      <div class="error-sub" id="errorMessage">
+        We couldn't generate your QR code. Please try again.
+      </div>
+      <button class="btn-primary" onclick="retrySetup()">Try Again</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ─── CONFIG ───────────────────────────────────────────────
+  const EVOLUTION_API_URL = 'http://bright-evolution-api.cgvxor.easypanel.host';
+  const EVOLUTION_API_KEY = '429683C4C977415CAAFCCE10F7D57E11';
+  const N8N_SIGNUP_WEBHOOK = 'https://bright-n8n.cgvxor.easypanel.host/webhook/botflow-signup';
+  // ──────────────────────────────────────────────────────────
+
+  let instanceName = '';
+  let timerInterval = null;
+  let pollInterval = null;
+  let timeLeft = 60;
+  let formData = {};
+
+  // Get form data passed via URL params
+  function getParams() {
+    const p = new URLSearchParams(window.location.search);
+    return {
+      firstName: p.get('firstName') || '',
+      lastName: p.get('lastName') || '',
+      businessName: p.get('businessName') || '',
+      whatsapp: p.get('whatsapp') || '',
+      email: p.get('email') || '',
+      occupation: p.get('occupation') || '',
+      instanceName: p.get('instanceName') || '',
+      trialEnd: p.get('trialEnd') || ''
+    };
+  }
+
+  async function init() {
+    formData = getParams();
+
+    // If instanceName already passed (from n8n redirect), fetch QR directly
+    if (formData.instanceName) {
+      instanceName = formData.instanceName;
+      setTimeout(() => fetchQR(), 1500);
+    } else {
+      // Submit to n8n and get instance name back
+      await submitToN8N();
+    }
+  }
+
+  async function submitToN8N() {
+    try {
+      updateLoadingStep(3);
+      const resp = await fetch(N8N_SIGNUP_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      const data = await resp.json();
+      instanceName = data.instanceName || formData.instanceName;
+      updateLoadingStep(4);
+      setTimeout(() => fetchQR(), 2000);
+    } catch (err) {
+      showError('Could not connect to BotFlow servers. Please check your connection and try again.');
+    }
+  }
+
+  async function fetchQR() {
+    try {
+      updateLoadingStep(4);
+
+      const resp = await fetch(`${EVOLUTION_API_URL}/instance/connect/${instanceName}`, {
+        headers: { 'apikey': EVOLUTION_API_KEY }
+      });
+
+      const data = await resp.json();
+
+      if (data.base64) {
+        showQR(data.base64);
+      } else if (data.instance?.status === 'open') {
+        showConnected();
+      } else {
+        // Retry after 2s
+        setTimeout(fetchQR, 2000);
+      }
+    } catch (err) {
+      showError('Could not fetch QR code. Please refresh and try again.');
+    }
+  }
+
+  function showQR(base64) {
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('qrState').style.display = 'block';
+    document.getElementById('qrImage').src = base64;
+
+    // Start countdown timer
+    timeLeft = 60;
+    document.getElementById('timerDisplay').textContent = timeLeft;
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      document.getElementById('timerDisplay').textContent = timeLeft;
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        refreshQR();
+      }
+    }, 1000);
+
+    // Poll for connection status every 3 seconds
+    pollInterval = setInterval(checkConnection, 3000);
+  }
+
+  async function checkConnection() {
+    try {
+      const resp = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances`, {
+        headers: { 'apikey': EVOLUTION_API_KEY }
+      });
+      const data = await resp.json();
+      const instance = data.find(i => i.instance?.instanceName === instanceName);
+
+      if (instance?.instance?.status === 'open') {
+        clearInterval(pollInterval);
+        clearInterval(timerInterval);
+        showConnected();
+      }
+    } catch (err) {
+      // Silent fail, keep polling
+    }
+  }
+
+  async function refreshQR() {
+    clearInterval(timerInterval);
+    document.getElementById('qrState').style.display = 'none';
+    document.getElementById('loadingState').style.display = 'block';
+    resetLoadingSteps();
+    setTimeout(fetchQR, 1000);
+  }
+
+  function showConnected() {
+    document.getElementById('qrState').style.display = 'none';
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('connectedState').style.display = 'block';
+
+    // Fill in details
+    document.getElementById('connBusinessName').textContent = formData.businessName || '—';
+    document.getElementById('connOccupation').textContent = formatOccupation(formData.occupation);
+    document.getElementById('connTrialEnd').textContent = formData.trialEnd
+      ? new Date(formData.trialEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+      : '2 days from now';
+  }
+
+  function showError(msg) {
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('qrState').style.display = 'none';
+    document.getElementById('errorState').style.display = 'block';
+    document.getElementById('errorMessage').textContent = msg;
+  }
+
+  function retrySetup() {
+    document.getElementById('errorState').style.display = 'none';
+    document.getElementById('loadingState').style.display = 'block';
+    resetLoadingSteps();
+    setTimeout(fetchQR, 1000);
+  }
+
+  function updateLoadingStep(step) {
+    const steps = ['ls1','ls2','ls3','ls4'];
+    steps.forEach((id, i) => {
+      const el = document.getElementById(id);
+      const iconEl = el.querySelector('.step-icon');
+      if (i < step - 1) {
+        el.className = 'loading-step done';
+        iconEl.className = 'step-icon done-icon';
+        iconEl.textContent = '✓';
+      } else if (i === step - 1) {
+        el.className = 'loading-step active';
+        iconEl.className = 'step-icon spinning';
+        iconEl.textContent = '';
+      } else {
+        el.className = 'loading-step';
+        iconEl.className = 'step-icon pending-icon';
+        iconEl.textContent = '';
+      }
+    });
+  }
+
+  function resetLoadingSteps() {
+    updateLoadingStep(3);
+  }
+
+  function formatOccupation(occ) {
+    const map = {
+      restaurant: '🍽️ Restaurant',
+      real_estate: '🏠 Real Estate',
+      healthcare: '🏥 Healthcare',
+      ecommerce: '🛒 E-commerce',
+      education: '🎓 Education'
+    };
+    return map[occ] || occ;
+  }
+
+  // Start
+  window.addEventListener('load', init);
+</script>
+</body>
+</html>

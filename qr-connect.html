@@ -607,7 +607,7 @@
       <div class="error-sub" id="errorMessage">
         We couldn't generate your QR code. Please try again.
       </div>
-      <button class="btn-primary" onclick="retrySetup()">Try Again</button>
+      <button class="btn-primary" onclick="window.location.href='index.html'">← Back to Signup</button>
     </div>
 
   </div>
@@ -644,31 +644,22 @@
   async function init() {
     formData = getParams();
 
-    // If instanceName already passed (from n8n redirect), fetch QR directly
     if (formData.instanceName) {
+      // instanceName passed from landing page — go straight to QR
       instanceName = formData.instanceName;
-      setTimeout(() => fetchQR(), 1500);
+      updateLoadingStep(3);
+      setTimeout(() => {
+        updateLoadingStep(4);
+        setTimeout(() => fetchQR(), 800);
+      }, 1000);
     } else {
-      // Submit to n8n and get instance name back
-      await submitToN8N();
+      // No instanceName — signup likely failed, show error with back link
+      showError('Setup incomplete. Please go back and fill the signup form again.');
     }
   }
 
   async function submitToN8N() {
-    try {
-      updateLoadingStep(3);
-      const resp = await fetch(N8N_SIGNUP_WEBHOOK, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-      const data = await resp.json();
-      instanceName = data.instanceName || formData.instanceName;
-      updateLoadingStep(4);
-      setTimeout(() => fetchQR(), 2000);
-    } catch (err) {
-      showError('Could not connect to BotFlow servers. Please check your connection and try again.');
-    }
+    // Not used in this flow — signup happens on landing page
   }
 
   async function fetchQR() {
